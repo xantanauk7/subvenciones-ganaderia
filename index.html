@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Monitor Subvenciones Ganadería Digital</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/dist/tabler-icons.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:    #ffffff; --bg2: #f7f6f2; --bg3: #f1efe8;
+      --text:  #1a1a18; --text2: #6b6a63; --text3: #9c9a92;
+      --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+      --green: #1D9E75; --green-bg: #E1F5EE; --green-text: #0F6E56;
+      --blue-bg: #E6F1FB; --blue-text: #185FA5;
+      --amber-bg: #FAEEDA; --amber-text: #854F0B;
+      --red-bg: #FCEBEB;  --red-text: #A32D2D;
+      --gray-bg: #F1EFE8; --gray-text: #5F5E5A;
+      --radius: 8px; --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+        --text: #e8e6de; --text2: #9c9a92; --text3: #6b6a63;
+        --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
+        --green-bg: #04342C; --green-text: #9FE1CB;
+        --blue-bg: #042C53; --blue-text: #B5D4F4;
+        --amber-bg: #412402; --amber-text: #FAC775;
+        --red-bg: #501313; --red-text: #F7C1C1;
+        --gray-bg: #2C2C2A; --gray-text: #B4B2A9;
+      }
+    }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg3); color: var(--text); font-size: 14px; line-height: 1.5; }
+    .layout { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    header h1 { font-size: 18px; font-weight: 500; }
+    header p  { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .btn-primary { padding: 8px 16px; font-size: 13px; font-weight: 500; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--text); color: var(--bg); cursor: pointer; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn { padding: 5px 12px; font-size: 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: none; color: var(--text); cursor: pointer; }
+    .btn:hover { background: var(--bg2); }
+
+    .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
+    .metric  { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; }
+    .metric .lbl { font-size: 11px; color: var(--text2); margin-bottom: 6px; }
+    .metric .val { font-size: 22px; font-weight: 500; }
+    .metric .sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .filters { display: flex; gap: 10px; padding: 14px 16px; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; align-items: center; }
+    .filters label { font-size: 12px; color: var(--text2); }
+    .filters select, .filters input { font-size: 13px; padding: 6px 10px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); }
+    .filters select:focus, .filters input:focus { outline: none; border-color: var(--green); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 500; color: var(--text2); border-bottom: 0.5px solid var(--border); white-space: nowrap; }
+    tbody td { padding: 11px 14px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--bg2); }
+    .name strong { font-size: 13px; display: block; }
+    .name span   { font-size: 11px; color: var(--text2); margin-top: 2px; display: block; }
+
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .s-nueva   { background: var(--green-bg); color: var(--green-text); }
+    .s-abierta { background: var(--blue-bg);  color: var(--blue-text);  }
+    .s-proxima { background: var(--amber-bg); color: var(--amber-text); }
+    .s-cerrada { background: var(--gray-bg);  color: var(--gray-text);  }
+    .p-alta    { background: var(--red-bg);   color: var(--red-text);   }
+    .p-media   { background: var(--amber-bg); color: var(--amber-text); }
+    .p-baja    { background: var(--blue-bg);  color: var(--blue-text);  }
+
+    .score { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
+    .score-bar { width: 36px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .score-fill { height: 100%; background: var(--green); border-radius: 2px; }
+
+    .empty { padding: 48px 16px; text-align: center; color: var(--text2); }
+    .loading { padding: 48px 16px; text-align: center; color: var(--text2); }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .last-run { font-size: 11px; color: var(--text3); padding: 8px 16px; border-top: 0.5px solid var(--border); }
+
+    /* Configuración modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--bg); border-radius: var(--radius-lg); padding: 24px; width: 480px; max-width: 95vw; border: 0.5px solid var(--border); }
+    .modal h2 { font-size: 16px; font-weight: 500; margin-bottom: 16px; }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .field label { font-size: 12px; color: var(--text2); font-weight: 500; }
+    .field input { padding: 8px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); font-size: 13px; }
+    .field input:focus { outline: none; border-color: var(--green); }
+    .field .hint { font-size: 11px; color: var(--text3); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    @media (max-width: 768px) {
+      .metrics { grid-template-columns: repeat(2,1fr); }
+      thead th:nth-child(n+4) { display: none; }
+      tbody td:nth-child(n+4) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <header>
+    <div>
+      <h1><i class="ti ti-cow" style="color:var(--green);margin-right:6px;"></i>Monitor subvenciones ganadería digital</h1>
+      <p id="next-run-label">Cargando...</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" onclick="openConfig()"><i class="ti ti-settings"></i> Configurar</button>
+      <button class="btn-primary" onclick="loadData(true)"><i class="ti ti-refresh"></i> Actualizar</button>
+    </div>
+  </header>
+
+  <div class="metrics">
+    <div class="metric"><div class="lbl">Subvenciones activas</div><div class="val" id="m-activas" style="color:var(--green)">—</div><div class="sub" id="m-activas-sub"></div></div>
+    <div class="metric"><div class="lbl">Importe potencial</div><div class="val" id="m-importe">—</div><div class="sub">estimado accesible</div></div>
+    <div class="metric"><div class="lbl">Alta prioridad</div><div class="val" id="m-alta" style="color:var(--red-text)">—</div><div class="sub">plazo &lt;30 días</div></div>
+    <div class="metric"><div class="lbl">Collares potenciales</div><div class="val" id="m-collares">—</div><div class="sub">unidades financiables</div></div>
+  </div>
+
+  <div class="card">
+    <div class="filters">
+      <label>Filtrar:</label>
+      <select id="f-estado" onchange="applyFilters()">
+        <option value="">Todos los estados</option>
+        <option value="nueva">Nueva</option>
+        <option value="abierta">Abierta</option>
+        <option value="proxima">Próxima</option>
+        <option value="cerrada">Cerrada</option>
+      </select>
+      <select id="f-prioridad" onchange="applyFilters()">
+        <option value="">Toda prioridad</option>
+        <option value="alta">Alta</option>
+        <option value="media">Media</option>
+        <option value="baja">Baja</option>
+      </select>
+      <select id="f-ccaa" onchange="applyFilters()">
+        <option value="">Todas las CCAA</option>
+        <option>Andalucía</option><option>Aragón</option><option>Asturias</option>
+        <option>Baleares</option><option>Canarias</option><option>Cantabria</option>
+        <option>Castilla-La Mancha</option><option>Castilla y León</option><option>Cataluña</option>
+        <option>Comunidad Valenciana</option><option>Extremadura</option><option>Galicia</option>
+        <option>La Rioja</option><option>Madrid</option><option>Murcia</option>
+        <option>Navarra</option><option>País Vasco</option><option>Nacional</option>
+      </select>
+      <input type="text" id="f-buscar" placeholder="Buscar..." oninput="applyFilters()" style="flex:1;min-width:140px;"/>
+      <span id="result-count" style="font-size:12px;color:var(--text3);white-space:nowrap;"></span>
+    </div>
+
+    <div id="table-wrap">
+      <div class="loading"><div class="spinner"></div><br>Cargando datos de Supabase...</div>
+    </div>
+
+    <div class="last-run" id="last-run-info"></div>
+  </div>
+</div>
+
+<!-- Config modal -->
+<div class="modal-overlay" id="config-modal">
+  <div class="modal">
+    <h2><i class="ti ti-settings" style="margin-right:6px;"></i>Configuración de Supabase</h2>
+    <div class="field">
+      <label>Supabase URL</label>
+      <input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"/>
+      <span class="hint">Encuéntralo en Project Settings → API</span>
+    </div>
+    <div class="field">
+      <label>Supabase Anon Key</label>
+      <input type="text" id="cfg-key" placeholder="eyJhbGci..."/>
+      <span class="hint">Usa la anon/public key (no la service key)</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeConfig()">Cancelar</button>
+      <button class="btn-primary" onclick="saveConfig()">Guardar y conectar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'subv_config';
+let allData = [];
+let sbClient = null;
+
+// ── Configuración ────────────────────────────────────────────────────────
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
+}
+function saveConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  if (!url || !key) { alert('Rellena los dos campos.'); return; }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ url, key }));
+  closeConfig();
+  initSupabase(url, key);
+  loadData();
+}
+function openConfig() {
+  const cfg = loadConfig();
+  document.getElementById('cfg-url').value = cfg.url || '';
+  document.getElementById('cfg-key').value = cfg.key || '';
+  document.getElementById('config-modal').classList.add('open');
+}
+function closeConfig() { document.getElementById('config-modal').classList.remove('open'); }
+
+// ── Supabase ─────────────────────────────────────────────────────────────
+function initSupabase(url, key) {
+  sbClient = window.supabase.createClient(url, key);
+}
+
+async function loadData(force = false) {
+  if (!sbClient) { showEmpty('Configura Supabase primero — pulsa el botón ⚙️ Configurar'); return; }
+  showLoading();
+  try {
+    const { data, error } = await sbClient
+      .from('subvenciones')
+      .select('*')
+      .order('fecha_cierre', { ascending: true, nullsFirst: false });
+    if (error) throw error;
+    allData = data || [];
+    updateMetrics();
+    applyFilters();
+    loadLastRun();
+  } catch(e) {
+    showEmpty(`Error conectando con Supabase: ${e.message}. Revisa la configuración.`);
+  }
+}
+
+async function loadLastRun() {
+  try {
+    const { data } = await sbClient
+      .from('scraper_runs')
+      .select('finalizado_en, nuevas, actualizadas')
+      .order('iniciado_en', { ascending: false })
+      .limit(1);
+    if (data && data[0]) {
+      const r = data[0];
+      const d = r.finalizado_en ? new Date(r.finalizado_en).toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+      document.getElementById('last-run-info').textContent =
+        `Última ejecución del scraper: ${d} · ${r.nuevas} nuevas, ${r.actualizadas} actualizadas`;
+    }
+  } catch {}
+}
+
+// ── Métricas ─────────────────────────────────────────────────────────────
+function updateMetrics() {
+  const activas = allData.filter(r => r.estado === 'nueva' || r.estado === 'abierta');
+  const importe = allData.reduce((s, r) => s + (r.importe_max || 0), 0);
+  const hoy = new Date();
+  const alta = allData.filter(r => {
+    if (r.estado === 'cerrada') return false;
+    if (!r.fecha_cierre) return false;
+    const diff = (new Date(r.fecha_cierre) - hoy) / 86400000;
+    return diff <= 30 && diff >= 0;
+  });
+  const collares = allData.reduce((s, r) => s + (r.collares_est || 0), 0);
+
+  document.getElementById('m-activas').textContent   = activas.length;
+  document.getElementById('m-activas-sub').textContent = `de ${allData.length} registradas`;
+  document.getElementById('m-importe').textContent   = importe >= 1e6 ? `€${(importe/1e6).toFixed(1)}M` : `€${(importe/1000).toFixed(0)}K`;
+  document.getElementById('m-alta').textContent      = alta.length;
+  document.getElementById('m-collares').textContent  = `~${collares}`;
+
+  const next = new Date();
+  next.setDate(next.getDate() + 14);
+  document.getElementById('next-run-label').textContent =
+    `Actualizado en tiempo real · próxima búsqueda automática: ${next.toLocaleDateString('es-ES', { day:'numeric', month:'long' })}`;
+}
+
+// ── Filtros y tabla ───────────────────────────────────────────────────────
+function applyFilters() {
+  const est  = document.getElementById('f-estado').value;
+  const pri  = document.getElementById('f-prioridad').value;
+  const ca   = document.getElementById('f-ccaa').value;
+  const txt  = document.getElementById('f-buscar').value.toLowerCase();
+
+  const rows = allData.filter(r =>
+    (!est || r.estado === est) &&
+    (!pri || r.prioridad === pri) &&
+    (!ca  || r.ccaa === ca) &&
+    (!txt || r.nombre?.toLowerCase().includes(txt) || r.ccaa?.toLowerCase().includes(txt) || r.notas?.toLowerCase().includes(txt))
+  );
+  document.getElementById('result-count').textContent = `${rows.length} resultados`;
+  renderTable(rows);
+}
+
+function renderTable(rows) {
+  if (!rows.length) { showEmpty('No hay subvenciones con estos filtros.'); return; }
+  const html = `
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Subvención</th><th>CCAA</th><th>Estado</th>
+          <th>Cierre</th><th>Importe máx.</th><th>IA</th>
+          <th>Prioridad</th><th>Collares</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td class="name">
+              <strong>${esc(r.nombre)}</strong>
+              ${r.notas ? `<span>${esc(r.notas.substring(0,80))}${r.notas.length>80?'…':''}</span>` : ''}
+            </td>
+            <td>${esc(r.ccaa)}</td>
+            <td><span class="badge s-${r.estado}">${r.estado}</span></td>
+            <td style="white-space:nowrap;">${fmtDate(r.fecha_cierre)}</td>
+            <td style="white-space:nowrap;">${r.importe_max ? `€${Number(r.importe_max).toLocaleString('es-ES')}` : '—'}${r.pct_subvencion ? ` <span style="color:var(--text2)">(${r.pct_subvencion}%)</span>` : ''}</td>
+            <td>
+              ${r.puntuacion_ia != null ? `
+                <div class="score">
+                  <div class="score-bar"><div class="score-fill" style="width:${r.puntuacion_ia*10}%"></div></div>
+                  ${r.puntuacion_ia}/10
+                </div>` : '—'}
+            </td>
+            <td><span class="badge p-${r.prioridad}">${r.prioridad}</span></td>
+            <td style="font-weight:500;">${r.collares_est ?? '—'}</td>
+            <td>
+              ${r.url_convocatoria ? `<a href="${r.url_convocatoria}" target="_blank" class="btn" style="text-decoration:none;">Ver <i class="ti ti-external-link"></i></a>` : ''}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    </div>`;
+  document.getElementById('table-wrap').innerHTML = html;
+}
+
+function showLoading() {
+  document.getElementById('table-wrap').innerHTML =
+    '<div class="loading"><div class="spinner"></div><br>Cargando...</div>';
+}
+function showEmpty(msg) {
+  document.getElementById('table-wrap').innerHTML =
+    `<div class="empty"><i class="ti ti-database-off" style="font-size:32px;display:block;margin-bottom:8px;"></i>${msg}</div>`;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' });
+}
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────
+(function init() {
+  const cfg = loadConfig();
+  if (cfg.url && cfg.key) {
+    initSupabase(cfg.url, cfg.key);
+    loadData();
+  } else {
+    showEmpty('Bienvenido. Pulsa <strong>⚙️ Configurar</strong> e introduce tu URL y clave de Supabase para empezar.');
+    document.getElementById('next-run-label').textContent = 'Sin conexión a Supabase';
+  }
+})();
+</script>
+</body>
+</html>

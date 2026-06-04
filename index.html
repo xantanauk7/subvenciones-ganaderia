@@ -3,359 +3,509 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Monitor Subvenciones Ganadería Digital</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/dist/tabler-icons.min.css"/>
+  <title>Monitor Subvenciones · Ganadería Digital</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:    #ffffff; --bg2: #f7f6f2; --bg3: #f1efe8;
-      --text:  #1a1a18; --text2: #6b6a63; --text3: #9c9a92;
-      --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
-      --green: #1D9E75; --green-bg: #E1F5EE; --green-text: #0F6E56;
-      --blue-bg: #E6F1FB; --blue-text: #185FA5;
-      --amber-bg: #FAEEDA; --amber-text: #854F0B;
-      --red-bg: #FCEBEB;  --red-text: #A32D2D;
-      --gray-bg: #F1EFE8; --gray-text: #5F5E5A;
-      --radius: 8px; --radius-lg: 12px;
+      --bg:      #0f1110;
+      --bg2:     #161918;
+      --bg3:     #1c1f1e;
+      --border:  rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.14);
+      --text:    #e8e4dc;
+      --text2:   #8a8780;
+      --text3:   #555250;
+      --green:   #4ade80;
+      --green2:  #166534;
+      --amber:   #fbbf24;
+      --amber2:  #78350f;
+      --red:     #f87171;
+      --red2:    #7f1d1d;
+      --blue:    #60a5fa;
+      --blue2:   #1e3a5f;
+      --mono:    'DM Mono', monospace;
+      --sans:    'DM Sans', sans-serif;
     }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
-        --text: #e8e6de; --text2: #9c9a92; --text3: #6b6a63;
-        --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
-        --green-bg: #04342C; --green-text: #9FE1CB;
-        --blue-bg: #042C53; --blue-text: #B5D4F4;
-        --amber-bg: #412402; --amber-text: #FAC775;
-        --red-bg: #501313; --red-text: #F7C1C1;
-        --gray-bg: #2C2C2A; --gray-text: #B4B2A9;
-      }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; min-height: 100vh; }
+
+    /* ── Header ── */
+    .header { padding: 28px 32px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .header-left h1 { font-size: 15px; font-weight: 500; letter-spacing: 0.02em; color: var(--text); }
+    .header-left p  { font-size: 12px; color: var(--text3); font-family: var(--mono); margin-top: 3px; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* ── Buttons ── */
+    .btn { padding: 7px 14px; font-size: 12px; font-family: var(--sans); font-weight: 500; border: 1px solid var(--border2); border-radius: 6px; background: transparent; color: var(--text2); cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn:hover { color: var(--text); border-color: rgba(255,255,255,0.25); background: var(--bg3); }
+    .btn-primary { background: var(--green); color: #0a1a0e; border-color: var(--green); font-weight: 600; }
+    .btn-primary:hover { background: #86efac; border-color: #86efac; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+    /* ── Metrics ── */
+    .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; margin: 24px 32px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .metric { background: var(--bg2); padding: 18px 20px; }
+    .metric .lbl { font-size: 11px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .metric .val { font-size: 28px; font-weight: 300; line-height: 1; }
+    .metric .sub { font-size: 11px; color: var(--text3); margin-top: 5px; }
+
+    /* ── Card ── */
+    .card { margin: 0 32px 32px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg2); }
+
+    /* ── Toolbar ── */
+    .toolbar { display: flex; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; background: var(--bg3); }
+    .toolbar select, .toolbar input {
+      font-size: 12px; font-family: var(--sans); padding: 6px 10px;
+      border-radius: 5px; border: 1px solid var(--border2);
+      background: var(--bg2); color: var(--text2);
+      transition: border-color .15s;
     }
-    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg3); color: var(--text); font-size: 14px; line-height: 1.5; }
-    .layout { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
-    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    header h1 { font-size: 18px; font-weight: 500; }
-    header p  { font-size: 12px; color: var(--text2); margin-top: 2px; }
-    .btn-primary { padding: 8px 16px; font-size: 13px; font-weight: 500; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--text); color: var(--bg); cursor: pointer; }
-    .btn-primary:hover { opacity: 0.85; }
-    .btn { padding: 5px 12px; font-size: 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: none; color: var(--text); cursor: pointer; }
-    .btn:hover { background: var(--bg2); }
+    .toolbar select:focus, .toolbar input:focus { outline: none; border-color: var(--green); color: var(--text); }
+    .toolbar input { flex: 1; min-width: 120px; }
+    .count { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-left: auto; white-space: nowrap; }
 
-    .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
-    .metric  { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; }
-    .metric .lbl { font-size: 11px; color: var(--text2); margin-bottom: 6px; }
-    .metric .val { font-size: 22px; font-weight: 500; }
-    .metric .sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
-
-    .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
-    .filters { display: flex; gap: 10px; padding: 14px 16px; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; align-items: center; }
-    .filters label { font-size: 12px; color: var(--text2); }
-    .filters select, .filters input { font-size: 13px; padding: 6px 10px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); }
-    .filters select:focus, .filters input:focus { outline: none; border-color: var(--green); }
-
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 500; color: var(--text2); border-bottom: 0.5px solid var(--border); white-space: nowrap; }
-    tbody td { padding: 11px 14px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+    thead th { text-align: left; padding: 10px 14px; font-size: 10px; font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: var(--bg2); }
-    .name strong { font-size: 13px; display: block; }
-    .name span   { font-size: 11px; color: var(--text2); margin-top: 2px; display: block; }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    .cell-name strong { display: block; font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.4; }
+    .cell-name span   { font-size: 11px; color: var(--text3); margin-top: 3px; display: block; line-height: 1.5; }
 
-    .badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
-    .s-nueva   { background: var(--green-bg); color: var(--green-text); }
-    .s-abierta { background: var(--blue-bg);  color: var(--blue-text);  }
-    .s-proxima { background: var(--amber-bg); color: var(--amber-text); }
-    .s-cerrada { background: var(--gray-bg);  color: var(--gray-text);  }
-    .p-alta    { background: var(--red-bg);   color: var(--red-text);   }
-    .p-media   { background: var(--amber-bg); color: var(--amber-text); }
-    .p-baja    { background: var(--blue-bg);  color: var(--blue-text);  }
+    /* ── Badges ── */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-family: var(--mono); font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; }
+    .s-nueva   { background: rgba(74,222,128,0.12); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+    .s-abierta { background: rgba(96,165,250,0.12); color: var(--blue);  border: 1px solid rgba(96,165,250,0.2); }
+    .s-proxima { background: rgba(251,191,36,0.12); color: var(--amber); border: 1px solid rgba(251,191,36,0.2); }
+    .s-cerrada { background: rgba(255,255,255,0.05); color: var(--text3); border: 1px solid var(--border); }
+    .p-alta    { background: rgba(248,113,113,0.12); color: var(--red);   border: 1px solid rgba(248,113,113,0.2); }
+    .p-media   { background: rgba(251,191,36,0.12);  color: var(--amber); border: 1px solid rgba(251,191,36,0.2); }
+    .p-baja    { background: rgba(96,165,250,0.12);  color: var(--blue);  border: 1px solid rgba(96,165,250,0.2); }
 
-    .score { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
-    .score-bar { width: 36px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    /* ── Score bar ── */
+    .score { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--mono); color: var(--text2); }
+    .score-bar { width: 32px; height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
     .score-fill { height: 100%; background: var(--green); border-radius: 2px; }
 
-    .empty { padding: 48px 16px; text-align: center; color: var(--text2); }
-    .loading { padding: 48px 16px; text-align: center; color: var(--text2); }
-    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 8px; }
+    /* ── Empty / Loading ── */
+    .state-box { padding: 64px 24px; text-align: center; }
+    .state-box .icon { font-size: 32px; margin-bottom: 12px; opacity: 0.3; }
+    .state-box p { color: var(--text3); font-size: 13px; line-height: 1.7; }
+    .state-box strong { color: var(--text2); }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--green); border-radius: 50%; animation: spin .6s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .last-run { font-size: 11px; color: var(--text3); padding: 8px 16px; border-top: 0.5px solid var(--border); }
+    /* ── Search progress ── */
+    .search-progress { padding: 20px 24px; border-bottom: 1px solid var(--border); background: rgba(74,222,128,0.04); display: none; }
+    .search-progress.visible { display: block; }
+    .search-progress .sp-label { font-size: 12px; color: var(--green); font-family: var(--mono); margin-bottom: 8px; }
+    .search-progress .sp-log { font-size: 11px; color: var(--text3); font-family: var(--mono); max-height: 80px; overflow-y: auto; line-height: 1.8; }
 
-    /* Configuración modal */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
-    .modal-overlay.open { display: flex; }
-    .modal { background: var(--bg); border-radius: var(--radius-lg); padding: 24px; width: 480px; max-width: 95vw; border: 0.5px solid var(--border); }
-    .modal h2 { font-size: 16px; font-weight: 500; margin-bottom: 16px; }
-    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-    .field label { font-size: 12px; color: var(--text2); font-weight: 500; }
-    .field input { padding: 8px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); font-size: 13px; }
+    /* ── Footer ── */
+    .footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .footer span { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+    /* ── Config modal ── */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+    .overlay.open { display: flex; }
+    .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 28px; width: 460px; max-width: 95vw; }
+    .modal h2 { font-size: 15px; font-weight: 500; margin-bottom: 6px; }
+    .modal .sub { font-size: 12px; color: var(--text3); margin-bottom: 20px; line-height: 1.6; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 11px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .field input { width: 100%; padding: 9px 12px; font-size: 13px; font-family: var(--mono); border: 1px solid var(--border2); border-radius: 6px; background: var(--bg3); color: var(--text); }
     .field input:focus { outline: none; border-color: var(--green); }
-    .field .hint { font-size: 11px; color: var(--text3); }
+    .field .hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
-    @media (max-width: 768px) {
+    @media(max-width:768px) {
       .metrics { grid-template-columns: repeat(2,1fr); }
-      thead th:nth-child(n+4) { display: none; }
-      tbody td:nth-child(n+4) { display: none; }
+      .header, .card { margin-left: 16px; margin-right: 16px; }
+      thead th:nth-child(n+4), tbody td:nth-child(n+4) { display: none; }
     }
   </style>
 </head>
 <body>
 
-<div class="layout">
-  <header>
-    <div>
-      <h1><i class="ti ti-cow" style="color:var(--green);margin-right:6px;"></i>Monitor subvenciones ganadería digital</h1>
-      <p id="next-run-label">Cargando...</p>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn" onclick="openConfig()"><i class="ti ti-settings"></i> Configurar</button>
-      <button class="btn-primary" onclick="loadData(true)"><i class="ti ti-refresh"></i> Actualizar</button>
-    </div>
-  </header>
+<div class="header">
+  <div class="header-left">
+    <h1>Monitor · Subvenciones ganadería digital</h1>
+    <p id="next-label">conectando...</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn" onclick="openConfig()">⚙ configurar</button>
+    <button class="btn btn-primary" id="btn-search" onclick="runSearch()">↻ buscar ahora</button>
+  </div>
+</div>
 
-  <div class="metrics">
-    <div class="metric"><div class="lbl">Subvenciones activas</div><div class="val" id="m-activas" style="color:var(--green)">—</div><div class="sub" id="m-activas-sub"></div></div>
-    <div class="metric"><div class="lbl">Importe potencial</div><div class="val" id="m-importe">—</div><div class="sub">estimado accesible</div></div>
-    <div class="metric"><div class="lbl">Alta prioridad</div><div class="val" id="m-alta" style="color:var(--red-text)">—</div><div class="sub">plazo &lt;30 días</div></div>
-    <div class="metric"><div class="lbl">Collares potenciales</div><div class="val" id="m-collares">—</div><div class="sub">unidades financiables</div></div>
+<div class="metrics">
+  <div class="metric"><div class="lbl">activas</div><div class="val" id="m-activas" style="color:var(--green)">—</div><div class="sub" id="m-activas-sub">subvenciones abiertas</div></div>
+  <div class="metric"><div class="lbl">potencial</div><div class="val" id="m-importe">—</div><div class="sub">importe estimado</div></div>
+  <div class="metric"><div class="lbl">urgentes</div><div class="val" id="m-urgentes" style="color:var(--red)">—</div><div class="sub">cierre &lt;30 días</div></div>
+  <div class="metric"><div class="lbl">collares</div><div class="val" id="m-collares">—</div><div class="sub">unidades financiables</div></div>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <select id="f-estado" onchange="applyFilters()">
+      <option value="">todos los estados</option>
+      <option value="nueva">nueva</option>
+      <option value="abierta">abierta</option>
+      <option value="proxima">próxima</option>
+      <option value="cerrada">cerrada</option>
+    </select>
+    <select id="f-prioridad" onchange="applyFilters()">
+      <option value="">toda prioridad</option>
+      <option value="alta">alta</option>
+      <option value="media">media</option>
+      <option value="baja">baja</option>
+    </select>
+    <select id="f-ccaa" onchange="applyFilters()">
+      <option value="">todas las CCAA</option>
+      <option>Andalucía</option><option>Aragón</option><option>Asturias</option>
+      <option>Baleares</option><option>Canarias</option><option>Cantabria</option>
+      <option>Castilla-La Mancha</option><option>Castilla y León</option><option>Cataluña</option>
+      <option>Comunidad Valenciana</option><option>Extremadura</option><option>Galicia</option>
+      <option>La Rioja</option><option>Madrid</option><option>Murcia</option>
+      <option>Navarra</option><option>País Vasco</option><option>Nacional</option>
+    </select>
+    <input type="text" id="f-buscar" placeholder="buscar..." oninput="applyFilters()"/>
+    <span class="count" id="result-count"></span>
   </div>
 
-  <div class="card">
-    <div class="filters">
-      <label>Filtrar:</label>
-      <select id="f-estado" onchange="applyFilters()">
-        <option value="">Todos los estados</option>
-        <option value="nueva">Nueva</option>
-        <option value="abierta">Abierta</option>
-        <option value="proxima">Próxima</option>
-        <option value="cerrada">Cerrada</option>
-      </select>
-      <select id="f-prioridad" onchange="applyFilters()">
-        <option value="">Toda prioridad</option>
-        <option value="alta">Alta</option>
-        <option value="media">Media</option>
-        <option value="baja">Baja</option>
-      </select>
-      <select id="f-ccaa" onchange="applyFilters()">
-        <option value="">Todas las CCAA</option>
-        <option>Andalucía</option><option>Aragón</option><option>Asturias</option>
-        <option>Baleares</option><option>Canarias</option><option>Cantabria</option>
-        <option>Castilla-La Mancha</option><option>Castilla y León</option><option>Cataluña</option>
-        <option>Comunidad Valenciana</option><option>Extremadura</option><option>Galicia</option>
-        <option>La Rioja</option><option>Madrid</option><option>Murcia</option>
-        <option>Navarra</option><option>País Vasco</option><option>Nacional</option>
-      </select>
-      <input type="text" id="f-buscar" placeholder="Buscar..." oninput="applyFilters()" style="flex:1;min-width:140px;"/>
-      <span id="result-count" style="font-size:12px;color:var(--text3);white-space:nowrap;"></span>
-    </div>
+  <div id="search-progress" class="search-progress">
+    <div class="sp-label"><span class="spinner"></span><span id="sp-status">buscando en BOE...</span></div>
+    <div class="sp-log" id="sp-log"></div>
+  </div>
 
-    <div id="table-wrap">
-      <div class="loading"><div class="spinner"></div><br>Cargando datos de Supabase...</div>
+  <div id="table-wrap">
+    <div class="state-box">
+      <div class="icon">◎</div>
+      <p><strong>Sin conexión a Supabase</strong><br>Pulsa ⚙ configurar e introduce tus credenciales.</p>
     </div>
+  </div>
 
-    <div class="last-run" id="last-run-info"></div>
+  <div class="footer">
+    <span id="last-run">—</span>
+    <span id="footer-url">—</span>
   </div>
 </div>
 
 <!-- Config modal -->
-<div class="modal-overlay" id="config-modal">
+<div class="overlay" id="cfg-overlay">
   <div class="modal">
-    <h2><i class="ti ti-settings" style="margin-right:6px;"></i>Configuración de Supabase</h2>
+    <h2>Configuración</h2>
+    <p class="sub">Introduce tus credenciales de Supabase y la API key de Anthropic para activar la búsqueda automática en el BOE.</p>
     <div class="field">
       <label>Supabase URL</label>
       <input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"/>
-      <span class="hint">Encuéntralo en Project Settings → API</span>
     </div>
     <div class="field">
-      <label>Supabase Anon Key</label>
-      <input type="text" id="cfg-key" placeholder="eyJhbGci..."/>
-      <span class="hint">Usa la anon/public key (no la service key)</span>
+      <label>Supabase Publishable Key</label>
+      <input type="text" id="cfg-anon" placeholder="sb_publishable_..."/>
+      <div class="hint">Encuéntrala en Supabase → Settings → API</div>
+    </div>
+    <div class="field">
+      <label>Anthropic API Key</label>
+      <input type="password" id="cfg-claude" placeholder="sk-ant-..."/>
+      <div class="hint">Necesaria para que el botón "buscar ahora" funcione · console.anthropic.com</div>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeConfig()">Cancelar</button>
-      <button class="btn-primary" onclick="saveConfig()">Guardar y conectar</button>
+      <button class="btn" onclick="closeConfig()">cancelar</button>
+      <button class="btn btn-primary" onclick="saveConfig()">guardar y conectar</button>
     </div>
   </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'subv_config';
-let allData = [];
-let sbClient = null;
+// ── Config ──────────────────────────────────────────────────────────────────
+const CFG_KEY = 'subv_cfg_v2';
+let sb = null, allData = [], cfg = {};
 
-// ── Configuración ────────────────────────────────────────────────────────
-function loadConfig() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
+function loadCfg() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
+function openConfig() {
+  cfg = loadCfg();
+  document.getElementById('cfg-url').value    = cfg.url    || '';
+  document.getElementById('cfg-anon').value   = cfg.anon   || '';
+  document.getElementById('cfg-claude').value = cfg.claude || '';
+  document.getElementById('cfg-overlay').classList.add('open');
 }
+function closeConfig() { document.getElementById('cfg-overlay').classList.remove('open'); }
 function saveConfig() {
-  const url = document.getElementById('cfg-url').value.trim();
-  const key = document.getElementById('cfg-key').value.trim();
-  if (!url || !key) { alert('Rellena los dos campos.'); return; }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ url, key }));
+  const url    = document.getElementById('cfg-url').value.trim();
+  const anon   = document.getElementById('cfg-anon').value.trim();
+  const claude = document.getElementById('cfg-claude').value.trim();
+  if (!url || !anon) { alert('Supabase URL y Publishable Key son obligatorias.'); return; }
+  cfg = { url, anon, claude };
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
   closeConfig();
-  initSupabase(url, key);
+  initSb(url, anon);
   loadData();
 }
-function openConfig() {
-  const cfg = loadConfig();
-  document.getElementById('cfg-url').value = cfg.url || '';
-  document.getElementById('cfg-key').value = cfg.key || '';
-  document.getElementById('config-modal').classList.add('open');
-}
-function closeConfig() { document.getElementById('config-modal').classList.remove('open'); }
 
-// ── Supabase ─────────────────────────────────────────────────────────────
-function initSupabase(url, key) {
-  sbClient = window.supabase.createClient(url, key);
-}
+// ── Supabase ─────────────────────────────────────────────────────────────────
+function initSb(url, anon) { sb = window.supabase.createClient(url, anon); }
 
-async function loadData(force = false) {
-  if (!sbClient) { showEmpty('Configura Supabase primero — pulsa el botón ⚙️ Configurar'); return; }
+async function loadData() {
+  if (!sb) return;
   showLoading();
   try {
-    const { data, error } = await sbClient
-      .from('subvenciones')
-      .select('*')
-      .order('fecha_cierre', { ascending: true, nullsFirst: false });
+    const { data, error } = await sb.from('subvenciones').select('*').order('fecha_cierre', { ascending: true, nullsFirst: false });
     if (error) throw error;
     allData = data || [];
     updateMetrics();
     applyFilters();
     loadLastRun();
   } catch(e) {
-    showEmpty(`Error conectando con Supabase: ${e.message}. Revisa la configuración.`);
+    showEmpty(`Error conectando: ${e.message}`);
   }
 }
 
 async function loadLastRun() {
   try {
-    const { data } = await sbClient
-      .from('scraper_runs')
-      .select('finalizado_en, nuevas, actualizadas')
-      .order('iniciado_en', { ascending: false })
-      .limit(1);
-    if (data && data[0]) {
+    const { data } = await sb.from('scraper_runs').select('finalizado_en,nuevas,actualizadas,log').order('iniciado_en',{ascending:false}).limit(1);
+    if (data?.[0]) {
       const r = data[0];
-      const d = r.finalizado_en ? new Date(r.finalizado_en).toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-      document.getElementById('last-run-info').textContent =
-        `Última ejecución del scraper: ${d} · ${r.nuevas} nuevas, ${r.actualizadas} actualizadas`;
+      const d = r.finalizado_en ? new Date(r.finalizado_en).toLocaleString('es-ES') : '—';
+      document.getElementById('last-run').textContent = `última búsqueda: ${d} · ${r.nuevas ?? 0} nuevas`;
+      document.getElementById('next-label').textContent = `actualizado en tiempo real · próxima búsqueda: pulsa el botón`;
     }
   } catch {}
 }
 
-// ── Métricas ─────────────────────────────────────────────────────────────
+// ── Métricas ──────────────────────────────────────────────────────────────────
 function updateMetrics() {
-  const activas = allData.filter(r => r.estado === 'nueva' || r.estado === 'abierta');
-  const importe = allData.reduce((s, r) => s + (r.importe_max || 0), 0);
-  const hoy = new Date();
-  const alta = allData.filter(r => {
-    if (r.estado === 'cerrada') return false;
-    if (!r.fecha_cierre) return false;
-    const diff = (new Date(r.fecha_cierre) - hoy) / 86400000;
-    return diff <= 30 && diff >= 0;
+  const activas  = allData.filter(r => r.estado === 'nueva' || r.estado === 'abierta');
+  const importe  = allData.reduce((s,r) => s + (r.importe_max||0), 0);
+  const hoy      = new Date();
+  const urgentes = allData.filter(r => {
+    if (!r.fecha_cierre || r.estado === 'cerrada') return false;
+    return (new Date(r.fecha_cierre) - hoy) / 86400000 <= 30;
   });
-  const collares = allData.reduce((s, r) => s + (r.collares_est || 0), 0);
-
+  const collares = allData.reduce((s,r) => s + (r.collares_est||0), 0);
   document.getElementById('m-activas').textContent   = activas.length;
   document.getElementById('m-activas-sub').textContent = `de ${allData.length} registradas`;
-  document.getElementById('m-importe').textContent   = importe >= 1e6 ? `€${(importe/1e6).toFixed(1)}M` : `€${(importe/1000).toFixed(0)}K`;
-  document.getElementById('m-alta').textContent      = alta.length;
+  document.getElementById('m-importe').textContent   = importe >= 1e6 ? `€${(importe/1e6).toFixed(1)}M` : `€${Math.round(importe/1000)}K`;
+  document.getElementById('m-urgentes').textContent  = urgentes.length;
   document.getElementById('m-collares').textContent  = `~${collares}`;
-
-  const next = new Date();
-  next.setDate(next.getDate() + 14);
-  document.getElementById('next-run-label').textContent =
-    `Actualizado en tiempo real · próxima búsqueda automática: ${next.toLocaleDateString('es-ES', { day:'numeric', month:'long' })}`;
 }
 
-// ── Filtros y tabla ───────────────────────────────────────────────────────
+// ── Filtros / tabla ───────────────────────────────────────────────────────────
 function applyFilters() {
-  const est  = document.getElementById('f-estado').value;
-  const pri  = document.getElementById('f-prioridad').value;
-  const ca   = document.getElementById('f-ccaa').value;
-  const txt  = document.getElementById('f-buscar').value.toLowerCase();
-
+  const est = document.getElementById('f-estado').value;
+  const pri = document.getElementById('f-prioridad').value;
+  const ca  = document.getElementById('f-ccaa').value;
+  const txt = document.getElementById('f-buscar').value.toLowerCase();
   const rows = allData.filter(r =>
     (!est || r.estado === est) &&
     (!pri || r.prioridad === pri) &&
     (!ca  || r.ccaa === ca) &&
-    (!txt || r.nombre?.toLowerCase().includes(txt) || r.ccaa?.toLowerCase().includes(txt) || r.notas?.toLowerCase().includes(txt))
+    (!txt || (r.nombre||'').toLowerCase().includes(txt) || (r.ccaa||'').toLowerCase().includes(txt) || (r.notas||'').toLowerCase().includes(txt))
   );
   document.getElementById('result-count').textContent = `${rows.length} resultados`;
   renderTable(rows);
 }
 
 function renderTable(rows) {
-  if (!rows.length) { showEmpty('No hay subvenciones con estos filtros.'); return; }
-  const html = `
-    <div style="overflow-x:auto;">
+  if (!rows.length) { showEmpty('Sin resultados con estos filtros.'); return; }
+  document.getElementById('table-wrap').innerHTML = `
+    <div class="table-wrap">
     <table>
-      <thead>
+      <thead><tr>
+        <th>Convocatoria</th><th>CCAA</th><th>Estado</th>
+        <th>Cierre</th><th>Importe</th><th>IA</th><th>Prior.</th><th>Collares</th><th></th>
+      </tr></thead>
+      <tbody>${rows.map(r=>`
         <tr>
-          <th>Subvención</th><th>CCAA</th><th>Estado</th>
-          <th>Cierre</th><th>Importe máx.</th><th>IA</th>
-          <th>Prioridad</th><th>Collares</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(r => `
-          <tr>
-            <td class="name">
-              <strong>${esc(r.nombre)}</strong>
-              ${r.notas ? `<span>${esc(r.notas.substring(0,80))}${r.notas.length>80?'…':''}</span>` : ''}
-            </td>
-            <td>${esc(r.ccaa)}</td>
-            <td><span class="badge s-${r.estado}">${r.estado}</span></td>
-            <td style="white-space:nowrap;">${fmtDate(r.fecha_cierre)}</td>
-            <td style="white-space:nowrap;">${r.importe_max ? `€${Number(r.importe_max).toLocaleString('es-ES')}` : '—'}${r.pct_subvencion ? ` <span style="color:var(--text2)">(${r.pct_subvencion}%)</span>` : ''}</td>
-            <td>
-              ${r.puntuacion_ia != null ? `
-                <div class="score">
-                  <div class="score-bar"><div class="score-fill" style="width:${r.puntuacion_ia*10}%"></div></div>
-                  ${r.puntuacion_ia}/10
-                </div>` : '—'}
-            </td>
-            <td><span class="badge p-${r.prioridad}">${r.prioridad}</span></td>
-            <td style="font-weight:500;">${r.collares_est ?? '—'}</td>
-            <td>
-              ${r.url_convocatoria ? `<a href="${r.url_convocatoria}" target="_blank" class="btn" style="text-decoration:none;">Ver <i class="ti ti-external-link"></i></a>` : ''}
-            </td>
-          </tr>
-        `).join('')}
+          <td class="cell-name">
+            <strong>${esc(r.nombre)}</strong>
+            ${r.notas?`<span>${esc(r.notas.substring(0,90))}${r.notas.length>90?'…':''}</span>`:''}
+          </td>
+          <td style="font-size:12px;color:var(--text2);white-space:nowrap">${esc(r.ccaa||'')}</td>
+          <td><span class="badge s-${r.estado}">${r.estado}</span></td>
+          <td style="font-size:12px;font-family:var(--mono);white-space:nowrap;color:var(--text2)">${fmtDate(r.fecha_cierre)}</td>
+          <td style="font-size:12px;font-family:var(--mono);white-space:nowrap">${r.importe_max?`€${Number(r.importe_max).toLocaleString('es-ES')}`:'—'}${r.pct_subvencion?` <span style="color:var(--text3)">${r.pct_subvencion}%</span>`:''}</td>
+          <td>${r.puntuacion_ia!=null?`<div class="score"><div class="score-bar"><div class="score-fill" style="width:${r.puntuacion_ia*10}%"></div></div>${r.puntuacion_ia}</div>`:'—'}</td>
+          <td><span class="badge p-${r.prioridad}">${r.prioridad}</span></td>
+          <td style="font-size:12px;font-family:var(--mono);font-weight:500;color:var(--text)">${r.collares_est??'—'}</td>
+          <td>${r.url_convocatoria?`<a href="${r.url_convocatoria}" target="_blank" class="btn btn-sm" style="text-decoration:none">ver →</a>`:''}</td>
+        </tr>`).join('')}
       </tbody>
-    </table>
-    </div>`;
-  document.getElementById('table-wrap').innerHTML = html;
+    </table></div>`;
 }
 
 function showLoading() {
-  document.getElementById('table-wrap').innerHTML =
-    '<div class="loading"><div class="spinner"></div><br>Cargando...</div>';
+  document.getElementById('table-wrap').innerHTML = `<div class="state-box"><p><span class="spinner"></span> cargando...</p></div>`;
 }
 function showEmpty(msg) {
-  document.getElementById('table-wrap').innerHTML =
-    `<div class="empty"><i class="ti ti-database-off" style="font-size:32px;display:block;margin-bottom:8px;"></i>${msg}</div>`;
+  document.getElementById('table-wrap').innerHTML = `<div class="state-box"><div class="icon">◌</div><p>${msg}</p></div>`;
+}
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'}) : '—'; }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── BÚSQUEDA CON CLAUDE API ──────────────────────────────────────────────────
+const SEARCHES = [
+  "subvenciones ganadería digitalización 2026",
+  "ayudas modernización explotaciones ganaderas 2026",
+  "subvenciones tecnología ganadera monitorización",
+  "ayudas sector primario digital CCAA 2026",
+  "convocatoria ganadería precisión IoT collar",
+];
+
+const SYSTEM_PROMPT = `Eres un experto en subvenciones españolas para digitalización del sector ganadero.
+Busca en el BOE y boletines autonómicos convocatorias relevantes para una empresa que vende collares GPS y sensores para ganado bovino, ovino y caprino.
+
+Para la búsqueda proporcionada, devuelve un array JSON con las subvenciones encontradas. Responde SOLO con JSON válido, sin markdown:
+[
+  {
+    "nombre": "título completo de la convocatoria",
+    "ccaa": "nombre de la CCAA o Nacional",
+    "organismo": "organismo convocante",
+    "estado": "abierta|proxima|cerrada",
+    "prioridad": "alta|media|baja",
+    "puntuacion": 1-10,
+    "fecha_cierre": "YYYY-MM-DD o null",
+    "importe_max": numero_o_null,
+    "pct_subvencion": numero_o_null,
+    "url_convocatoria": "URL directa al BOE si la conoces",
+    "notas": "resumen breve de requisitos y por qué es relevante para collares GPS ganaderos"
+  }
+]
+
+Si no encuentras subvenciones relevantes devuelve [].
+Criterios de relevancia:
+- Alta (8-10): menciona collares, monitorización animal, IoT ganadero, wearable, trazabilidad animal
+- Media (5-7): digitalización sector primario, modernización explotaciones ganaderas, agricultura precisión
+Solo incluye subvenciones que puedan financiar tecnología de monitorización ganadera.`;
+
+function logProgress(msg) {
+  const el = document.getElementById('sp-log');
+  el.innerHTML += `<div>${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
 }
 
-function fmtDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' });
-}
-function esc(s) {
-  if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function runSearch() {
+  cfg = loadCfg();
+  if (!cfg.claude) {
+    alert('Necesitas configurar la Anthropic API Key primero.\nPulsa ⚙ configurar.');
+    openConfig();
+    return;
+  }
+  if (!sb) {
+    alert('Configura Supabase primero.');
+    openConfig();
+    return;
+  }
+
+  const btn = document.getElementById('btn-search');
+  btn.disabled = true;
+  btn.textContent = '↻ buscando...';
+  document.getElementById('search-progress').classList.add('visible');
+  document.getElementById('sp-log').innerHTML = '';
+  document.getElementById('sp-status').textContent = 'consultando BOE con IA...';
+
+  // Registrar run
+  let runId = null;
+  try {
+    const { data } = await sb.from('scraper_runs').insert({ log: 'iniciado desde dashboard' }).select('id').single();
+    runId = data?.id;
+  } catch {}
+
+  let nuevas = 0, errores = 0;
+
+  for (const query of SEARCHES) {
+    logProgress(`🔍 buscando: "${query}"`);
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': cfg.claude,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2000,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: `Busca subvenciones para: ${query}\nFecha actual: ${new Date().toLocaleDateString('es-ES')}` }],
+        }),
+      });
+
+      if (!resp.ok) throw new Error(`API error ${resp.status}`);
+      const data = await resp.json();
+      let text = data.content[0].text.trim();
+      if (text.includes('```')) text = text.split('```')[1].replace(/^json/,'').trim();
+
+      const items = JSON.parse(text);
+      logProgress(`  → ${items.length} subvenciones encontradas`);
+
+      for (const item of items) {
+        try {
+          // Verificar duplicado por URL o nombre
+          const check = await sb.from('subvenciones').select('id')
+            .eq('nombre', item.nombre).limit(1);
+          if (check.data?.length > 0) { logProgress(`  ↷ duplicada: ${item.nombre.substring(0,50)}`); continue; }
+
+          await sb.from('subvenciones').insert({
+            nombre:           item.nombre?.substring(0,500),
+            ccaa:             item.ccaa || 'Nacional',
+            organismo:        item.organismo,
+            estado:           item.estado || 'abierta',
+            prioridad:        item.prioridad || 'media',
+            puntuacion_ia:    item.puntuacion,
+            fecha_cierre:     item.fecha_cierre || null,
+            importe_max:      item.importe_max || null,
+            pct_subvencion:   item.pct_subvencion || null,
+            url_convocatoria: item.url_convocatoria || null,
+            notas:            item.notas,
+            fuente:           'BOE/Claude',
+          });
+          nuevas++;
+          logProgress(`  ✓ [${item.puntuacion}/10] ${item.nombre.substring(0,60)}`);
+        } catch(e) {
+          errores++;
+          logProgress(`  ✗ error guardando: ${e.message}`);
+        }
+      }
+    } catch(e) {
+      logProgress(`  ✗ error en búsqueda: ${e.message}`);
+      errores++;
+    }
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  // Finalizar run
+  if (runId) {
+    await sb.from('scraper_runs').update({
+      finalizado_en: new Date().toISOString(),
+      nuevas, errores, actualizadas: 0,
+      log: `OK dashboard — ${nuevas} nuevas, ${errores} errores`,
+    }).eq('id', runId);
+  }
+
+  document.getElementById('sp-status').textContent = `✓ búsqueda completada — ${nuevas} subvenciones nuevas encontradas`;
+  btn.disabled = false;
+  btn.textContent = '↻ buscar ahora';
+
+  // Recargar datos
+  await loadData();
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────
+// ── Init ─────────────────────────────────────────────────────────────────────
 (function init() {
-  const cfg = loadConfig();
-  if (cfg.url && cfg.key) {
-    initSupabase(cfg.url, cfg.key);
+  cfg = loadCfg();
+  if (cfg.url && cfg.anon) {
+    initSb(cfg.url, cfg.anon);
     loadData();
+    document.getElementById('footer-url').textContent = cfg.url.replace('https://','').split('.')[0] + '.supabase.co';
   } else {
-    showEmpty('Bienvenido. Pulsa <strong>⚙️ Configurar</strong> e introduce tu URL y clave de Supabase para empezar.');
-    document.getElementById('next-run-label').textContent = 'Sin conexión a Supabase';
+    document.getElementById('next-label').textContent = 'sin conexión · pulsa ⚙ configurar';
   }
 })();
 </script>

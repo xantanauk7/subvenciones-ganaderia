@@ -6,8 +6,8 @@ name: Scraper subvenciones ganadería
 
 on:
   schedule:
-    - cron: '0 7 1,15 * *'   # Días 1 y 15 de cada mes a las 7:00 UTC
-  workflow_dispatch:           # Permite lanzarlo manualmente
+    - cron: '0 7 1,15 * *'
+  workflow_dispatch:
 
 jobs:
   scraper:
@@ -15,23 +15,20 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Instalar dependencias
-        run: pip install -r scraper/requirements.txt
+        run: pip install requests beautifulsoup4 anthropic supabase python-dotenv
 
       - name: Ejecutar scraper
         env:
-          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          ANTHROPIC_API_KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scraper/scraper.py
 
   

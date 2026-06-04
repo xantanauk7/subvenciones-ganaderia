@@ -210,4 +210,20 @@ def run():
             try:
                 r = upsert(raw, ai)
                 if r == "nueva": nuevas += 1
-                elif r == "actualizada
+                elif r == "actualizada": actualizadas += 1
+            except Exception as e:
+                errores += 1
+                log.error(f"  ✗ {e}")
+        time.sleep(1)
+
+    msg = f"OK — {nuevas} nuevas, {actualizadas} actualizadas, {errores} errores"
+    supabase.table("scraper_runs").update({
+        "finalizado_en": datetime.datetime.utcnow().isoformat(),
+        "nuevas": nuevas, "actualizadas": actualizadas,
+        "errores": errores, "log": msg,
+    }).eq("id", run_id).execute()
+    log.info(f"=== Fin: {msg} ===")
+
+
+if __name__ == "__main__":
+    run()

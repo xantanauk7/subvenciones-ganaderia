@@ -1,15 +1,9 @@
 """
-scraper.py v3 — Lee el BOE y boletines autonómicos
-Usa la API oficial gratuita del BOE (boe.es/datosabiertos)
+scraper.py v4 — Usa el buscador oficial del BOE (sin bloqueos)
 """
 
-import os
-import json
-import logging
-import datetime
-import time
-import urllib.request
-import urllib.parse
+import os, json, logging, datetime, time
+import urllib.request, urllib.parse
 import xml.etree.ElementTree as ET
 from anthropic import Anthropic
 from supabase import create_client
@@ -22,221 +16,119 @@ log = logging.getLogger(__name__)
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
 claude   = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-# ── Palabras clave para filtrar en los boletines ─────────────────────────────
-KEYWORDS = [
-    "ganadería", "ganadero", "ganado", "bovino", "ovino", "caprino",
-    "explotación ganadera", "sector primario", "digitalización agraria",
-    "modernización agraria", "agricultura de precisión", "IoT ganadería",
-    "monitorización animal", "collar", "trazabilidad animal",
-    "ganadería 4.0", "precision livestock",
+SEARCHES = [
+    "subvenciones ganadería digitalización",
+    "ayudas modernización explotaciones ganaderas",
+    "subvenciones tecnología ganadera",
+    "ayudas sector primario digital",
+    "subvenciones collar monitorización ganado",
+    "ayudas ganadería precisión IoT",
 ]
 
-# ── Boletines autonómicos con RSS/XML público ────────────────────────────────
-BOLETINES = {
-    "BOE":              "https://www.boe.es/datosabiertos/api/boe/sumario/{fecha}",
-    "BOJA":             "https://www.juntadeandalucia.es/eboja/rss/rss.xml",           # Andalucía
-    "BOCYL":            "https://bocyl.jcyl.es/rss/subvenciones.do",                   # CyL
-    "DOG":              "https://www.xunta.gal/dog/rss/subvenciones.xml",              # Galicia
-    "BOA":              "https://www.boa.aragon.es/rss/rss_subvenciones.xml",          # Aragón
-    "BOPV":             "https://www.euskadi.eus/bopv2/datos/rss/subvenciones.xml",    # País Vasco
-    "BON":              "https://bon.navarra.es/es/rss/subvenciones.xml",              # Navarra
-    "BOPA":             "https://sede.asturias.es/bopa/rss/subvenciones.xml",          # Asturias
-    "DOE":              "https://doe.juntaex.es/rss/subvenciones.xml",                 # Extremadura
-    "DOCM":             "https://docm.jccm.es/rss/subvenciones.xml",                   # CLM
-}
+SYSTEM_PROMPT = """Eres experto en subvenciones para digitalización del sector ganadero español.
+Analiza si esta convocatoria es relevante para vender collares GPS y sensores para ganado bovino, ovino y caprino.
 
-SYSTEM_PROMPT = """Eres un experto en subvenciones para digitalización del sector ganadero español.
-Analiza si una convocatoria de subvención es relevante para una empresa que vende
-collares GPS y sensores de monitorización para ganado bovino, ovino y caprino.
-
-Responde ÚNICAMENTE con JSON sin texto adicional ni markdown:
+Responde SOLO con JSON sin markdown:
 {
-  "relevante": true,
-  "puntuacion": 8,
-  "prioridad": "alta",
-  "ccaa_normalizada": "Andalucía",
-  "importe_max_estimado": 50000,
-  "pct_subvencion_estimado": 60,
-  "fecha_cierre_estimada": "2026-09-30",
-  "notas": "Ayuda para digitalización de explotaciones ganaderas. Cubre tecnología de monitorización animal."
-}
-
-Criterios:
-- Alta (8-10): menciona collares, monitorización animal, IoT ganadero, wearable animal, trazabilidad ganadera
-- Media (5-7): digitalización sector primario, modernización explotaciones, agricultura precisión, ganadería 4.0
-- Baja (3-4): digitalización general pymes agrarias, sin mención específica de ganadería
-- No relevante (relevante=false): sin relación con ganadería o tecnología agraria
-
-Si no puedes estimar un campo numérico, usa null."""
+  "relevante": true/false,
+  "puntuacion": 1-10,
+  "prioridad": "alta"/"media"/"baja",
+  "ccaa_normalizada": "nombre CCAA o Nacional",
+  "importe_max_estimado": numero_o_null,
+  "pct_subvencion_estimado": numero_o_null,
+  "fecha_cierre_estimada": "YYYY-MM-DD o null",
+  "notas": "resumen breve de requisitos clave"
+}"""
 
 
-# ── 1. BOE — API oficial ──────────────────────────────────────────────────────
-def fetch_boe_sumario(fecha: datetime.date) -> list[dict]:
-    """Descarga el sumario del BOE para una fecha y filtra por keywords ganaderas."""
-    url = f"https://www.boe.es/datosabiertos/api/boe/sumario/{fecha.strftime('%Y%m%d')}"
+def search_boe(query: str) -> list[dict]:
+    """Busca en el BOE usando su buscador oficial."""
+    # Calcular fechas últimas 2 semanas
+    hoy = datetime.date.today()
+    hace14 = hoy - datetime.timedelta(days=14)
+    
+    url = "https://boe.es/buscar/boe.php?" + urllib.parse.urlencode({
+        "campo[0]": "TIT",
+        "dato[0]": query,
+        "operador[0]": "and",
+        "campo[1]": "TXT",
+        "dato[1]": "subvención OR ayuda OR convocatoria",
+        "operador[1]": "and",
+        "fechaDesde": hace14.strftime("%d/%m/%Y"),
+        "fechaHasta": hoy.strftime("%d/%m/%Y"),
+        "sort": "ant",
+        "base_datos": "BOE",
+    })
+    
     try:
         req = urllib.request.Request(url, headers={
-            "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 SubvencionesScraper/3.0",
+            "User-Agent": "Mozilla/5.0 (compatible; SubvencionesBot/1.0)",
+            "Accept": "text/html,application/xhtml+xml",
         })
         with urllib.request.urlopen(req, timeout=20) as r:
-            data = json.loads(r.read().decode())
-
+            html = r.read().decode("utf-8", errors="ignore")
+        
         items = []
-        # Recorrer la estructura del sumario BOE
-        diario = data.get("data", {}).get("sumario", {}).get("diario", [])
-        if isinstance(diario, dict):
-            diario = [diario]
-
-        for seccion in diario:
-            secciones = seccion.get("seccion", [])
-            if isinstance(secciones, dict):
-                secciones = [secciones]
-            for s in secciones:
-                departamentos = s.get("departamento", [])
-                if isinstance(departamentos, dict):
-                    departamentos = [departamentos]
-                for dept in departamentos:
-                    epigrafe_list = dept.get("epigrafe", [])
-                    if isinstance(epigrafe_list, dict):
-                        epigrafe_list = [epigrafe_list]
-                    for epi in epigrafe_list:
-                        items_boe = epi.get("item", [])
-                        if isinstance(items_boe, dict):
-                            items_boe = [items_boe]
-                        for item in items_boe:
-                            titulo = str(item.get("titulo", "")).lower()
-                            if any(kw.lower() in titulo for kw in KEYWORDS):
-                                items.append({
-                                    "nombre":    item.get("titulo", ""),
-                                    "organismo": dept.get("@nombre", ""),
-                                    "ccaa":      _detectar_ccaa(dept.get("@nombre", "") + " " + item.get("titulo", "")),
-                                    "fuente":    "BOE",
-                                    "bdns_id":   item.get("identificador", ""),
-                                    "url_convocatoria": f"https://www.boe.es{item.get('urlPdf', {}).get('@valor', '')}",
-                                    "url_boletin": f"https://www.boe.es/boe/dias/{fecha.strftime('%Y/%m/%d')}/",
-                                    "fecha_cierre": None,
-                                    "importe_max": None,
-                                    "descripcion": item.get("titulo", ""),
-                                })
-        log.info(f"  BOE {fecha}: {len(items)} ítems relevantes encontrados")
-        return items
-
-    except Exception as e:
-        log.warning(f"Error leyendo BOE {fecha}: {e}")
-        return []
-
-
-def fetch_boe_periodo(dias: int = 14) -> list[dict]:
-    """Lee el BOE de los últimos N días."""
-    items = []
-    hoy = datetime.date.today()
-    for i in range(dias):
-        fecha = hoy - datetime.timedelta(days=i)
-        if fecha.weekday() < 5:  # Solo días laborables
-            items.extend(fetch_boe_sumario(fecha))
-            time.sleep(0.5)
-    return items
-
-
-# ── 2. Boletines autonómicos — RSS ────────────────────────────────────────────
-def fetch_rss(nombre: str, url: str) -> list[dict]:
-    """Lee un RSS de boletín autonómico y filtra por keywords."""
-    try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 SubvencionesScraper/3.0",
-            "Accept": "application/rss+xml, application/xml, text/xml",
-        })
-        with urllib.request.urlopen(req, timeout=15) as r:
-            content = r.read()
-
-        root = ET.fromstring(content)
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        items = []
-
-        # Soporta RSS 2.0 y Atom
-        entries = root.findall(".//item") or root.findall(".//atom:entry", ns)
-
-        for entry in entries:
-            titulo = (
-                (entry.findtext("title") or entry.findtext("atom:title", namespaces=ns) or "")
-            )
-            descripcion = (
-                (entry.findtext("description") or entry.findtext("atom:summary", namespaces=ns) or "")
-            )
-            link = (
-                (entry.findtext("link") or entry.findtext("atom:link", namespaces=ns) or "")
-            )
-            texto = (titulo + " " + descripcion).lower()
-
-            if any(kw.lower() in texto for kw in KEYWORDS):
+        # Parsear resultados del HTML del BOE
+        import re
+        # Buscar bloques de resultado
+        bloques = re.findall(
+            r'<li class="resultado-busqueda"[^>]*>(.*?)</li>',
+            html, re.DOTALL
+        )
+        for bloque in bloques[:10]:
+            titulo_m = re.search(r'<p class="titulo"><a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', bloque, re.DOTALL)
+            dept_m   = re.search(r'<p class="departamento"[^>]*>(.*?)</p>', bloque, re.DOTALL)
+            fecha_m  = re.search(r'<p class="fechas"[^>]*>.*?(\d{2}/\d{2}/\d{4})', bloque, re.DOTALL)
+            
+            if titulo_m:
+                titulo = re.sub(r'<[^>]+>', '', titulo_m.group(2)).strip()
+                url_doc = "https://boe.es" + titulo_m.group(1)
+                dept    = re.sub(r'<[^>]+>', '', dept_m.group(1)).strip() if dept_m else ""
+                fecha   = fecha_m.group(1) if fecha_m else ""
+                
                 items.append({
-                    "nombre":         titulo,
-                    "organismo":      nombre,
-                    "ccaa":           _ccaa_from_boletin(nombre),
-                    "fuente":         nombre,
-                    "bdns_id":        None,
-                    "url_convocatoria": link,
-                    "url_boletin":    link,
-                    "fecha_cierre":   None,
-                    "importe_max":    None,
-                    "descripcion":    descripcion[:500],
+                    "nombre":           titulo,
+                    "organismo":        dept,
+                    "ccaa":             _detectar_ccaa(dept + " " + titulo),
+                    "fuente":           "BOE",
+                    "bdns_id":          None,
+                    "url_convocatoria": url_doc,
+                    "url_boletin":      url_doc,
+                    "fecha_cierre":     None,
+                    "importe_max":      None,
+                    "descripcion":      titulo,
                 })
-
-        log.info(f"  {nombre}: {len(items)} ítems relevantes")
+        
+        log.info(f"  BOE '{query}': {len(items)} resultados")
         return items
 
     except Exception as e:
-        log.warning(f"  {nombre}: error ({e})")
+        log.warning(f"  BOE error '{query}': {e}")
         return []
 
 
-# ── 3. Helpers ────────────────────────────────────────────────────────────────
 CCAA_MAP = {
-    "andaluc": "Andalucía", "junta de andalucía": "Andalucía",
-    "aragón": "Aragón", "aragón": "Aragón",
-    "asturias": "Asturias", "principado de asturias": "Asturias",
-    "baleares": "Baleares", "illes balears": "Baleares",
-    "canarias": "Canarias",
-    "cantabria": "Cantabria",
-    "castilla-la mancha": "Castilla-La Mancha", "castilla la mancha": "Castilla-La Mancha",
-    "castilla y león": "Castilla y León", "castilla y leon": "Castilla y León",
+    "andaluc": "Andalucía", "aragón": "Aragón", "asturias": "Asturias",
+    "baleares": "Baleares", "canarias": "Canarias", "cantabria": "Cantabria",
+    "castilla-la mancha": "Castilla-La Mancha", "castilla y león": "Castilla y León",
     "cataluña": "Cataluña", "catalunya": "Cataluña",
     "comunitat valenciana": "Comunidad Valenciana", "comunidad valenciana": "Comunidad Valenciana",
-    "extremadura": "Extremadura",
-    "galicia": "Galicia",
-    "la rioja": "La Rioja",
-    "madrid": "Madrid",
-    "murcia": "Murcia", "región de murcia": "Murcia",
-    "navarra": "Navarra", "nafarroa": "Navarra",
+    "extremadura": "Extremadura", "galicia": "Galicia", "la rioja": "La Rioja",
+    "madrid": "Madrid", "murcia": "Murcia", "navarra": "Navarra",
     "país vasco": "País Vasco", "euskadi": "País Vasco",
 }
 
 def _detectar_ccaa(texto: str) -> str:
-    texto_lower = texto.lower()
-    for key, ccaa in CCAA_MAP.items():
-        if key in texto_lower:
-            return ccaa
+    t = texto.lower()
+    for k, v in CCAA_MAP.items():
+        if k in t:
+            return v
     return "Nacional"
 
-def _ccaa_from_boletin(nombre: str) -> str:
-    mapa = {
-        "BOJA": "Andalucía", "BOCYL": "Castilla y León", "DOG": "Galicia",
-        "BOA": "Aragón", "BOPV": "País Vasco", "BON": "Navarra",
-        "BOPA": "Asturias", "DOE": "Extremadura", "DOCM": "Castilla-La Mancha",
-    }
-    return mapa.get(nombre, "Nacional")
 
-
-# ── 4. Clasificador IA ────────────────────────────────────────────────────────
 def classify(raw: dict):
-    texto = f"""Título: {raw['nombre']}
-Organismo: {raw['organismo']}
-CCAA: {raw['ccaa']}
-Fuente: {raw['fuente']}
-Descripción: {raw.get('descripcion', '')[:300]}
-URL: {raw.get('url_convocatoria', '')}"""
-
+    texto = f"Título: {raw['nombre']}\nOrganismo: {raw['organismo']}\nCCAA: {raw['ccaa']}"
     try:
         msg = claude.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -244,28 +136,22 @@ URL: {raw.get('url_convocatoria', '')}"""
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": texto}],
         )
-        text = msg.content[0].text.strip()
-        # Limpiar posible markdown
-        if "```" in text:
-            text = text.split("```")[1].replace("json", "").strip()
+        text = msg.content[0].text.strip().replace("```json","").replace("```","")
         result = json.loads(text)
         return result if result.get("relevante") else None
     except Exception as e:
-        log.warning(f"Error clasificando '{raw['nombre'][:40]}': {e}")
+        log.warning(f"Error clasificando: {e}")
         return None
 
 
-# ── 5. Supabase ───────────────────────────────────────────────────────────────
 def calcular_estado(fecha_str):
     if not fecha_str:
         return "abierta"
     try:
         cierre = datetime.date.fromisoformat(str(fecha_str)[:10])
         hoy = datetime.date.today()
-        if cierre < hoy:
-            return "cerrada"
-        if cierre <= hoy + datetime.timedelta(days=60):
-            return "abierta"
+        if cierre < hoy: return "cerrada"
+        if cierre <= hoy + datetime.timedelta(days=60): return "abierta"
         return "proxima"
     except:
         return "abierta"
@@ -289,86 +175,39 @@ def upsert(raw: dict, ai: dict) -> str:
     }
     record = {k: v for k, v in record.items() if v is not None and v != ""}
 
-    # Evitar duplicados por URL o bdns_id
-    bdns_id = raw.get("bdns_id")
     url = raw.get("url_convocatoria", "")
-
-    if bdns_id:
-        record["bdns_id"] = bdns_id
-        existing = supabase.table("subvenciones").select("id").eq("bdns_id", bdns_id).execute()
-        if existing.data:
-            supabase.table("subvenciones").update(record).eq("bdns_id", bdns_id).execute()
-            return "actualizada"
-    elif url:
+    if url:
         existing = supabase.table("subvenciones").select("id").eq("url_convocatoria", url).execute()
         if existing.data:
-            return "duplicada"
+            supabase.table("subvenciones").update(record).eq("url_convocatoria", url).execute()
+            return "actualizada"
 
     supabase.table("subvenciones").insert(record).execute()
     return "nueva"
 
 
-# ── 6. Runner principal ───────────────────────────────────────────────────────
 def run():
-    log.info("=== Iniciando scraper v3 — BOE + boletines autonómicos ===")
-    run_log = supabase.table("scraper_runs").insert({"log": "iniciado v3"}).execute()
+    log.info("=== Scraper v4 — Buscador BOE ===")
+    run_log = supabase.table("scraper_runs").insert({"log": "iniciado v4"}).execute()
     run_id  = run_log.data[0]["id"]
 
     nuevas = actualizadas = errores = 0
     vistas: set[str] = set()
 
-    # --- BOE últimos 14 días ---
-    log.info("Leyendo BOE (últimos 14 días)...")
-    boe_items = fetch_boe_periodo(dias=14)
-    log.info(f"BOE: {len(boe_items)} candidatos encontrados")
+    for query in SEARCHES:
+        items = search_boe(query)
+        for raw in items:
+            uid = raw.get("url_convocatoria") or raw["nombre"][:60]
+            if uid in vistas:
+                continue
+            vistas.add(uid)
 
-    # --- Boletines autonómicos por RSS ---
-    rss_items = []
-    for nombre, url in BOLETINES.items():
-        if nombre == "BOE":
-            continue
-        items = fetch_rss(nombre, url)
-        rss_items.extend(items)
-        time.sleep(0.5)
+            ai = classify(raw)
+            if ai is None:
+                continue
 
-    log.info(f"Boletines CCAA: {len(rss_items)} candidatos encontrados")
-
-    all_items = boe_items + rss_items
-
-    # --- Clasificar con IA y guardar ---
-    for raw in all_items:
-        uid = raw.get("bdns_id") or raw.get("url_convocatoria") or raw["nombre"][:60]
-        if uid in vistas:
-            continue
-        vistas.add(uid)
-
-        ai = classify(raw)
-        if ai is None:
-            continue
-
-        log.info(f"  ✓ RELEVANTE [{ai.get('puntuacion')}/10] {raw['nombre'][:70]}")
-
-        try:
-            resultado = upsert(raw, ai)
-            if resultado == "nueva":
-                nuevas += 1
-            elif resultado == "actualizada":
-                actualizadas += 1
-        except Exception as e:
-            errores += 1
-            log.error(f"  ✗ Error guardando: {e}")
-
-        time.sleep(0.3)  # Pausa entre llamadas a Claude
-
-    msg = f"OK — {nuevas} nuevas, {actualizadas} actualizadas, {errores} errores"
-    supabase.table("scraper_runs").update({
-        "finalizado_en": datetime.datetime.utcnow().isoformat(),
-        "nuevas": nuevas, "actualizadas": actualizadas,
-        "errores": errores, "log": msg,
-    }).eq("id", run_id).execute()
-
-    log.info(f"=== Fin: {msg} ===")
-
-
-if __name__ == "__main__":
-    run()
+            log.info(f"  ✓ [{ai.get('puntuacion')}/10] {raw['nombre'][:70]}")
+            try:
+                r = upsert(raw, ai)
+                if r == "nueva": nuevas += 1
+                elif r == "actualizada
